@@ -96,7 +96,10 @@ pub fn get_validity_period(
     })
 }
 
-pub trait FileHandler<'a, R> where R: std::io::Read {
+pub trait FileHandler<'a, R: 'a>
+where
+    R: std::io::Read,
+{
     fn get_file(&'a mut self, name: &str) -> Result<R>;
 }
 
@@ -159,7 +162,10 @@ where
     }
 }
 
-impl<'a, R> FileHandler<'a, zip::read::ZipFile<'a>> for ZipHandler<R> where R: std::io::Seek + std::io::Read,{
+impl<'a, R> FileHandler<'a, zip::read::ZipFile<'a>> for ZipHandler<R>
+where
+    R: std::io::Seek + std::io::Read,
+{
     fn get_file(&'a mut self, name: &str) -> Result<zip::read::ZipFile<'a>> {
         // self.index_by_name
         //     .get(name)

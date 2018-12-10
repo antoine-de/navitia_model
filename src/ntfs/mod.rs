@@ -124,11 +124,12 @@ pub fn read<P: AsRef<path::Path>>(path: P) -> Result<Model> {
     collections.trip_properties = make_opt_collection_with_id(path, "trip_properties.txt")?;
     collections.transfers = make_opt_collection(path, "transfers.txt")?;
     collections.admin_stations = make_opt_collection(path, "admin_stations.txt")?;
-    common_format::manage_calendars(
-        open_file(path, "calendar.txt").ok(),
-        open_file(path, "calendar_dates.txt").ok(),
-        &mut collections,
-    )?;
+    //TODO
+    // common_format::manage_calendars(
+    //     open_file(path, "calendar.txt").ok(),
+    //     open_file(path, "calendar_dates.txt").ok(),
+    //     &mut collections,
+    // )?;
     read::manage_geometries(&mut collections, path)?;
     read::manage_feed_infos(&mut collections, path)?;
     read::manage_stops(&mut collections, path)?;

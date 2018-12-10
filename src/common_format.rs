@@ -20,6 +20,7 @@ use csv;
 use failure::ResultExt;
 use model::Collections;
 use objects::{self, Date, ExceptionType};
+use read_utils::FileHandler;
 use std::collections::BTreeSet;
 use std::path;
 use utils::*;
@@ -117,14 +118,16 @@ impl Calendar {
     }
 }
 
-fn manage_calendar_dates<R: std::io::Read>(
+fn manage_calendar_dates<'a, H: FileHandler<'a, R>, R: 'a + std::io::Read>(
     calendars: &mut CollectionWithId<objects::Calendar>,
-    reader: Option<R>,
+    file_handler: &'a mut H,
 ) -> Result<()> {
     let file = "calendar_dates.txt";
+
+    let reader = file_handler.get_file(file);
     match reader {
-        None => info!("Skipping {}", file),
-        Some(reader) => {
+        Err(_) => info!("Skipping {}", file),
+        Ok(reader) => {
             info!("Reading {}", file);
 
             let mut rdr = csv::Reader::from_reader(reader);
@@ -161,32 +164,36 @@ fn manage_calendar_dates<R: std::io::Read>(
     Ok(())
 }
 
-pub fn manage_calendars<R: std::io::Read>(
-    calendar_reader: Option<R>,
-    calendar_date_reader: Option<R>,
+pub fn manage_calendars<'a, H: FileHandler<'a, R>, R: 'a + std::io::Read>(
+    file_handler: &'a mut H,
+    // calendar_reader: Option<R>,
+    // calendar_date_reader: Option<R>,
     collections: &mut Collections,
 ) -> Result<()> {
     let file = "calendar.txt";
     let mut calendars: Vec<objects::Calendar> = vec![];
-    match calendar_reader {
-        None => {
-            info!("Skipping {}", file);
-        }
-        Some(calendar_reader) => {
-            info!("Reading {}", file);
-            let mut rdr = csv::Reader::from_reader(calendar_reader);
-            for calendar in rdr.deserialize() {
-                let calendar: Calendar = calendar.with_context(ctx_from_filename!(file))?;
-                calendars.push(objects::Calendar {
-                    id: calendar.id.clone(),
-                    dates: calendar.get_valid_dates(),
-                });
+    {
+        let calendar_reader = file_handler.get_file(file);
+        match calendar_reader {
+            Err(_) => {
+                info!("Skipping {}", file);
             }
-            collections.calendars = CollectionWithId::new(calendars)?;
+            Ok(calendar_reader) => {
+                info!("Reading {}", file);
+                let mut rdr = csv::Reader::from_reader(calendar_reader);
+                for calendar in rdr.deserialize() {
+                    let calendar: Calendar = calendar.with_context(ctx_from_filename!(file))?;
+                    calendars.push(objects::Calendar {
+                        id: calendar.id.clone(),
+                        dates: calendar.get_valid_dates(),
+                    });
+                }
+                collections.calendars = CollectionWithId::new(calendars)?;
+            }
         }
     }
 
-    manage_calendar_dates(&mut collections.calendars, calendar_date_reader)?;
+    manage_calendar_dates(&mut collections.calendars, file_handler)?;
 
     Ok(())
 }
