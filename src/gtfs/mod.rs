@@ -26,7 +26,7 @@ use gtfs::read::EquipmentList;
 use model::{Collections, Model};
 use objects;
 use objects::Time;
-use read_utils::add_prefix;
+use read_utils::{add_prefix, open_file};
 use std::path::Path;
 use utils::*;
 use Result;
@@ -243,9 +243,11 @@ where
     let mut equipments = EquipmentList::default();
     let mut comments: CollectionWithId<objects::Comment> = CollectionWithId::default();
 
-    let path = path.as_ref();
-
-    manage_calendars(&mut collections, path)?;
+    manage_calendars(
+        open_file(&path, "calendar.txt").ok(),
+        open_file(&path, "calendar_dates.txt").ok(),
+        &mut collections,
+    )?;
 
     let (contributors, mut datasets) = read::read_config(config_path)?;
     read::set_dataset_validity_period(&mut datasets, &collections.calendars)?;
@@ -253,21 +255,30 @@ where
     collections.contributors = contributors;
     collections.datasets = datasets;
 
-    let (networks, companies) = read::read_agency(path)?;
+    let (networks, companies) = read::read_agency(open_file(&path, "agency.txt")?)?;
     collections.networks = networks;
     collections.companies = companies;
-    let (stop_areas, stop_points) = read::read_stops(path, &mut comments, &mut equipments)?;
-    collections.transfers = read::read_transfers(path, &stop_points)?;
+    let (stop_areas, stop_points) = read::read_stops(
+        open_file(&path, "stops.txt")?,
+        &mut comments,
+        &mut equipments,
+    )?;
+    collections.transfers =
+        read::read_transfers(open_file(&path, "transfers.txt").ok(), &stop_points)?;
     collections.stop_areas = stop_areas;
     collections.stop_points = stop_points;
 
-    read::manage_shapes(&mut collections, path)?;
+    read::manage_shapes(&mut collections, open_file(&path, "shapes.txt").ok())?;
 
-    read::read_routes(path, &mut collections)?;
+    read::read_routes(
+        open_file(&path, "routes.txt")?,
+        open_file(&path, "trips.txt")?,
+        &mut collections,
+    )?;
     collections.equipments = CollectionWithId::new(equipments.into_equipments())?;
     collections.comments = comments;
-    read::manage_stop_times(&mut collections, path)?;
-    read::manage_frequencies(&mut collections, path)?;
+    read::manage_stop_times(&mut collections, open_file(&path, "stop_times.txt")?)?;
+    read::manage_frequencies(&mut collections, open_file(&path, "frequencies.txt").ok())?;
 
     //add prefixes
     if let Some(prefix) = prefix {

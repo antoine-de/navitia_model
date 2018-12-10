@@ -23,6 +23,7 @@ use std::path;
 use utils::{add_prefix_to_collection, add_prefix_to_collection_with_id};
 use Result;
 extern crate serde_json;
+use failure::ResultExt;
 
 #[derive(Deserialize, Debug)]
 struct ConfigDataset {
@@ -92,4 +93,12 @@ pub fn get_validity_period(
         start_date: *dates.iter().next().unwrap(),
         end_date: *dates.iter().next_back().unwrap(),
     })
+}
+
+pub fn open_file<P: AsRef<path::Path>>(
+    path: P,
+    name: &str,
+) -> std::result::Result<File, failure::Context<String>> {
+    let f = path.as_ref().join(name);
+    File::open(&f).with_context(ctx_from_path!(&f))
 }

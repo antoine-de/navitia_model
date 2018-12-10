@@ -117,72 +117,76 @@ impl Calendar {
     }
 }
 
-fn manage_calendar_dates(
+fn manage_calendar_dates<R: std::io::Read>(
     calendars: &mut CollectionWithId<objects::Calendar>,
-    path: &path::Path,
+    reader: Option<R>,
 ) -> Result<()> {
     let file = "calendar_dates.txt";
-    let path = path.join(file);
-    if !path.exists() {
-        info!("Skipping {}", file);
-    } else {
-        info!("Reading {}", file);
+    match reader {
+        None => info!("Skipping {}", file),
+        Some(reader) => {
+            info!("Reading {}", file);
 
-        let mut rdr = csv::Reader::from_path(&path).with_context(ctx_from_path!(path))?;
-        for calendar_date in rdr.deserialize() {
-            let calendar_date: CalendarDate = calendar_date.with_context(ctx_from_path!(path))?;
+            let mut rdr = csv::Reader::from_reader(reader);
+            for calendar_date in rdr.deserialize() {
+                let calendar_date: CalendarDate =
+                    calendar_date.with_context(ctx_from_filename!(file))?;
 
-            let is_inserted = calendars
-                .get_mut(&calendar_date.service_id)
-                .map(|mut calendar| match calendar_date.exception_type {
-                    ExceptionType::Add => {
-                        calendar.dates.insert(calendar_date.date);
-                    }
-                    ExceptionType::Remove => {
-                        calendar.dates.remove(&calendar_date.date);
+                let is_inserted =
+                    calendars
+                        .get_mut(&calendar_date.service_id)
+                        .map(|mut calendar| match calendar_date.exception_type {
+                            ExceptionType::Add => {
+                                calendar.dates.insert(calendar_date.date);
+                            }
+                            ExceptionType::Remove => {
+                                calendar.dates.remove(&calendar_date.date);
+                            }
+                        });
+                is_inserted.unwrap_or_else(|| {
+                    if calendar_date.exception_type == ExceptionType::Add {
+                        let mut dates = BTreeSet::new();
+                        dates.insert(calendar_date.date);
+                        calendars
+                            .push(objects::Calendar {
+                                id: calendar_date.service_id,
+                                dates,
+                            })
+                            .unwrap();
                     }
                 });
-            is_inserted.unwrap_or_else(|| {
-                if calendar_date.exception_type == ExceptionType::Add {
-                    let mut dates = BTreeSet::new();
-                    dates.insert(calendar_date.date);
-                    calendars
-                        .push(objects::Calendar {
-                            id: calendar_date.service_id,
-                            dates,
-                        })
-                        .unwrap();
-                }
-            });
+            }
         }
     }
-
     Ok(())
 }
 
-pub fn manage_calendars(collections: &mut Collections, path: &path::Path) -> Result<()> {
-    let mut calendars: Vec<objects::Calendar> = vec![];
-
+pub fn manage_calendars<R: std::io::Read>(
+    calendar_reader: Option<R>,
+    calendar_date_reader: Option<R>,
+    collections: &mut Collections,
+) -> Result<()> {
     let file = "calendar.txt";
-    let calendar_path = path.join(file);
-    if !calendar_path.exists() {
-        info!("Skipping {}", file);
-    } else {
-        info!("Reading {}", file);
-        let mut rdr =
-            csv::Reader::from_path(&calendar_path).with_context(ctx_from_path!(calendar_path))?;
-        for calendar in rdr.deserialize() {
-            let calendar: Calendar = calendar.with_context(ctx_from_path!(calendar_path))?;
-            calendars.push(objects::Calendar {
-                id: calendar.id.clone(),
-                dates: calendar.get_valid_dates(),
-            });
+    let mut calendars: Vec<objects::Calendar> = vec![];
+    match calendar_reader {
+        None => {
+            info!("Skipping {}", file);
+        }
+        Some(calendar_reader) => {
+            info!("Reading {}", file);
+            let mut rdr = csv::Reader::from_reader(calendar_reader);
+            for calendar in rdr.deserialize() {
+                let calendar: Calendar = calendar.with_context(ctx_from_filename!(file))?;
+                calendars.push(objects::Calendar {
+                    id: calendar.id.clone(),
+                    dates: calendar.get_valid_dates(),
+                });
+            }
+            collections.calendars = CollectionWithId::new(calendars)?;
         }
     }
 
-    collections.calendars = CollectionWithId::new(calendars)?;
-
-    manage_calendar_dates(&mut collections.calendars, &path)?;
+    manage_calendar_dates(&mut collections.calendars, calendar_date_reader)?;
 
     Ok(())
 }
