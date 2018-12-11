@@ -34,7 +34,7 @@ use utils::*;
 use Result;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-struct Agency {
+pub struct Agency {
     #[serde(rename = "agency_id")]
     id: Option<String>,
     #[serde(rename = "agency_name")]
@@ -84,7 +84,7 @@ enum StopLocationType {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-struct Stop {
+pub struct Stop {
     #[serde(rename = "stop_id", deserialize_with = "de_without_slashes")]
     id: String,
     #[serde(rename = "stop_code")]
@@ -129,7 +129,7 @@ enum DirectionType {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-struct Trip {
+pub struct Trip {
     route_id: String,
     service_id: String,
     #[serde(rename = "trip_id")]
@@ -158,7 +158,7 @@ fn default_true_bool() -> bool {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct StopTime {
+pub struct StopTime {
     trip_id: String,
     arrival_time: Time,
     departure_time: Time,
@@ -194,7 +194,7 @@ enum TransferType {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
-struct Transfer {
+pub struct Transfer {
     #[serde(deserialize_with = "de_without_slashes")]
     from_stop_id: String,
     #[serde(deserialize_with = "de_without_slashes")]
@@ -216,7 +216,7 @@ impl<'a> From<&'a objects::Transfer> for Transfer {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq)]
-struct Shape {
+pub struct Shape {
     #[serde(rename = "shape_id", deserialize_with = "de_without_slashes")]
     id: String,
     #[serde(rename = "shape_pt_lat")]
@@ -344,7 +344,7 @@ enum RouteType {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-struct Route {
+pub struct Route {
     #[serde(rename = "route_id")]
     id: String,
     agency_id: Option<String>,
