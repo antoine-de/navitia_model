@@ -24,7 +24,7 @@ use std::path;
 use std::path::{Path, PathBuf};
 use std::{collections::BTreeMap, io::Read};
 use std::{fs::File, io::Seek};
-use typed_index_collection::{CollectionWithId, Id};
+use typed_index_collection::{Collection, CollectionWithId, Id};
 
 #[derive(Deserialize, Debug)]
 struct ConfigDataset {
@@ -108,6 +108,8 @@ where
             path,
         ))
     }
+
+    fn source_name(&self) -> &str;
 }
 
 /// PathFileHandler is used to read files for a directory
@@ -133,6 +135,12 @@ impl<'a, P: AsRef<Path>> FileHandler for &'a mut PathFileHandler<P> {
         } else {
             Ok((None, f))
         }
+    }
+    fn source_name(&self) -> &str {
+        self.base_path.as_ref().to_str().expect(&format!(
+            "the path '{:?}' should be valid UTF-8",
+            self.base_path.as_ref()
+        ))
     }
 }
 
@@ -185,6 +193,12 @@ where
             None => Ok((None, p)),
             Some(i) => Ok((Some(self.archive.by_index(*i)?), p)),
         }
+    }
+    fn source_name(&self) -> &str {
+        self.archive_path.to_str().expect(&format!(
+            "the path '{:?}' should be valid UTF-8",
+            self.archive_path
+        ))
     }
 }
 
