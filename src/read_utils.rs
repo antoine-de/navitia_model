@@ -255,6 +255,18 @@ where
     CollectionWithId::new(vec).map_err(|e| format_err!("{}", e))
 }
 
+pub(crate) fn read_opt_collection<H, O>(
+    file_handler: &mut H,
+    file_name: &str,
+) -> Result<Collection<O>>
+where
+    for<'a> &'a mut H: FileHandler,
+    O: for<'de> serde::Deserialize<'de>,
+{
+    let vec = read_opt_objects(file_handler, file_name)?;
+    Ok(Collection::new(vec))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
