@@ -319,7 +319,7 @@ where
     )?;
     read::manage_frequencies(&mut collections, file_handler)?;
     read::manage_pathways(&mut collections, file_handler)?;
-    collections.levels = read_utils::read_opt_collection(file_handler, "levels.txt")?;
+    collections.levels = read_utils::read_opt_collection_with_id(file_handler, "levels.txt")?;
 
     //add prefixes
     if let Some(prefix_conf) = prefix_conf {

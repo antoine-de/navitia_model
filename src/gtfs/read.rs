@@ -22,7 +22,7 @@ use crate::{
         self, Availability, CommentLinksT, Coord, KeysValues, Pathway, StopLocation, StopPoint,
         StopTime as NtfsStopTime, StopTimePrecision, StopType, Time, TransportType, VehicleJourney,
     },
-    read_utils::{read_collection, read_objects, FileHandler},
+    read_utils::{read_collection_with_id, read_objects, FileHandler},
     utils::*,
     Result,
 };
@@ -1182,7 +1182,7 @@ where
     for<'a> &'a mut H: FileHandler,
 {
     info!("Reading routes.txt");
-    let gtfs_routes_collection = read_collection(file_handler, "routes.txt")?;
+    let gtfs_routes_collection = read_collection_with_id(file_handler, "routes.txt")?;
     let (commercial_modes, physical_modes) = get_modes_from_gtfs(&gtfs_routes_collection);
     collections.commercial_modes = CollectionWithId::new(commercial_modes)?;
     collections.physical_modes = CollectionWithId::new(physical_modes)?;
@@ -1422,7 +1422,7 @@ mod tests {
         model::Collections,
         objects::*,
         objects::{Calendar, Comment, CommentType, Equipment, Geometry, Rgb, StopTime, Transfer},
-        read_utils::{self, read_opt_collection, PathFileHandler},
+        read_utils::{self, read_opt_collection_with_id, PathFileHandler},
         test_utils::*,
         AddPrefix, PrefixConfiguration,
     };
@@ -3242,7 +3242,7 @@ mod tests {
             create_file_with_content(path, "stops.txt", stops_content);
             create_file_with_content(path, "levels.txt", level_content);
             let levels: CollectionWithId<Level> =
-                read_opt_collection(&mut handler, "levels.txt").unwrap();
+                read_opt_collection_with_id(&mut handler, "levels.txt").unwrap();
             assert_eq!(4, levels.len());
         })
     }

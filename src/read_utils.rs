@@ -231,7 +231,7 @@ where
 }
 
 /// Read a CollectionId from a zip in a file_handler
-pub(crate) fn read_collection<H, O>(
+pub(crate) fn read_collection_with_id<H, O>(
     file_handler: &mut H,
     file_name: &str,
 ) -> Result<CollectionWithId<O>>
@@ -243,7 +243,7 @@ where
     CollectionWithId::new(vec).map_err(|e| format_err!("{}", e))
 }
 
-pub(crate) fn read_opt_collection<H, O>(
+pub(crate) fn read_opt_collection_with_id<H, O>(
     file_handler: &mut H,
     file_name: &str,
 ) -> Result<CollectionWithId<O>>
