@@ -13,16 +13,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>
 
 use super::{Code, CommentLink, ObjectProperty, Stop, StopLocationType, StopTime};
-use crate::model::Collections;
 use crate::ntfs::has_fares_v2;
 use crate::objects::*;
+use crate::read_utils::FileHandler;
 use crate::utils::make_collection_with_id;
 use crate::Result;
+use crate::{model::Collections, read_utils};
 use failure::{bail, ensure, format_err, ResultExt};
 use log::{error, info, warn, Level as LogLevel};
 use serde::{Deserialize, Serialize};
 use skip_error::skip_error_and_log;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::convert::TryFrom;
 use std::path;
 use typed_index_collection::{Collection, CollectionWithId, Id, Idx};
@@ -151,17 +152,17 @@ impl TryFrom<Stop> for StopLocation {
     }
 }
 
-pub fn manage_stops(collections: &mut Collections, path: &path::Path) -> Result<()> {
-    info!("Reading stops.txt");
-    let path = path.join("stops.txt");
-    let mut rdr =
-        csv::Reader::from_path(&path).with_context(|_| format!("Error reading {:?}", path))?;
-
+pub(crate) fn manage_stops<H>(file_handler: &mut H, collections: &mut Collections) -> Result<()>
+where
+    for<'a> &'a mut H: FileHandler,
+{
+    let file = "stops.txt";
     let mut stop_areas = vec![];
     let mut stop_points = vec![];
     let mut stop_locations = vec![];
-    for stop in rdr.deserialize() {
-        let stop: Stop = stop.with_context(|_| format!("Error reading {:?}", path))?;
+    let stops: Vec<Stop> = read_utils::read_objects(file_handler, file)?;
+
+    for stop in stops {
         match stop.location_type {
             StopLocationType::StopPoint | StopLocationType::GeographicArea => {
                 let mut stop_point =
@@ -405,25 +406,27 @@ struct FeedInfo {
     info_value: String,
 }
 
-pub fn manage_feed_infos(collections: &mut Collections, path: &path::Path) -> Result<()> {
-    info!("Reading feed_infos.txt");
-    let path = path.join("feed_infos.txt");
-    let mut rdr =
-        csv::Reader::from_path(&path).with_context(|_| format!("Error reading {:?}", path))?;
-    collections.feed_infos.clear();
-    for feed_info in rdr.deserialize() {
-        let feed_info: FeedInfo =
-            feed_info.with_context(|_| format!("Error reading {:?}", path))?;
-        ensure!(
-            collections
-                .feed_infos
-                .insert(feed_info.info_param.clone(), feed_info.info_value)
-                .is_none(),
-            "Problem reading {:?}: {} already found in file feed_infos.txt",
-            path,
-            feed_info.info_param,
-        );
-    }
+pub(crate) fn manage_feed_infos<H>(
+    file_handler: &mut H,
+    collections: &mut Collections,
+) -> Result<()>
+where
+    for<'a> &'a mut H: FileHandler,
+{
+    let file = "feed_infos.txt";
+    collections.feed_infos = read_utils::read_objects(file_handler, file)?
+        .into_iter()
+        .try_fold(BTreeMap::new(), |mut feeds, feed: FeedInfo| {
+            ensure!(
+                feeds
+                    .insert(feed.info_param.clone(), feed.info_value)
+                    .is_none(),
+                "Problem reading {:?}: {} already found in file feed_infos.txt",
+                file_handler.source_name(),
+                feed.info_param,
+            );
+            Ok(feeds)
+        })?;
     Ok(())
 }
 
@@ -597,27 +600,36 @@ pub fn manage_object_properties(collections: &mut Collections, path: &path::Path
     Ok(())
 }
 
-pub fn manage_geometries(collections: &mut Collections, path: &path::Path) -> Result<()> {
+pub(crate) fn manage_geometries<H>(
+    file_handler: &mut H,
+    collections: &mut Collections,
+) -> Result<()>
+where
+    for<'a> &'a mut H: FileHandler,
+{
     let file = "geometries.txt";
-    let path = path.join(file);
-    if !path.exists() {
-        info!("Skipping {}", file);
-        return Ok(());
+    let (calendar_reader, path) = file_handler.get_file_if_exists(file)?;
+    match calendar_reader {
+        None => {
+            info!("Skipping {}", file);
+            Ok(())
+        }
+        Some(calendar_reader) => {
+            info!("Reading {}", file);
+
+            let mut geometries: Vec<Geometry> = vec![];
+            let mut rdr = csv::Reader::from_path(&path)
+                .with_context(|_| format!("Error reading {:?}", path))?;
+            for geometry in rdr.deserialize() {
+                let geometry: Geometry = skip_error_and_log!(geometry, LogLevel::Warn);
+                geometries.push(geometry)
+            }
+
+            collections.geometries = CollectionWithId::new(geometries)?;
+
+            Ok(())
+        }
     }
-
-    info!("Reading {}", file);
-
-    let mut geometries: Vec<Geometry> = vec![];
-    let mut rdr =
-        csv::Reader::from_path(&path).with_context(|_| format!("Error reading {:?}", path))?;
-    for geometry in rdr.deserialize() {
-        let geometry: Geometry = skip_error_and_log!(geometry, LogLevel::Warn);
-        geometries.push(geometry)
-    }
-
-    collections.geometries = CollectionWithId::new(geometries)?;
-
-    Ok(())
 }
 
 pub fn manage_companies_on_vj(collections: &mut Collections) -> Result<()> {
@@ -643,23 +655,13 @@ pub fn manage_companies_on_vj(collections: &mut Collections) -> Result<()> {
     Ok(())
 }
 
-pub fn manage_pathways(collections: &mut Collections, path: &path::Path) -> Result<()> {
+pub(crate) fn manage_pathways<H>(file_handler: &mut H, collections: &mut Collections) -> Result<()>
+where
+    for<'a> &'a mut H: FileHandler,
+{
     let file = "pathways.txt";
-    let pathway_path = path.join(file);
-    if !pathway_path.exists() {
-        info!("Skipping {}", file);
-        return Ok(());
-    }
-
-    info!("Reading {}", file);
-    let mut pathways = vec![];
-    let mut rdr = csv::Reader::from_path(&pathway_path)
-        .with_context(|_| format!("Error reading {:?}", pathway_path))?;
-
-    for pathway in rdr.deserialize() {
-        let mut pathway: Pathway =
-            skip_error_and_log!(pathway.map_err(|e| format_err!("{}", e)), LogLevel::Warn);
-
+    let mut pathways: Vec<Pathway> = read_utils::read_opt_objects(file_handler, file)?;
+    for mut pathway in &mut pathways {
         pathway.from_stop_type = skip_error_and_log!(
             collections
                 .stop_points
@@ -697,7 +699,6 @@ pub fn manage_pathways(collections: &mut Collections, path: &path::Path) -> Resu
                 }),
             LogLevel::Warn
         );
-        pathways.push(pathway);
     }
 
     collections.pathways = CollectionWithId::new(pathways)?;
